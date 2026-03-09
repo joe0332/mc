@@ -37,6 +37,18 @@ function hasSupportItems(comments) {
   return /\.\/media\/inbound\/[\w\-.]+\.(?:jpg|jpeg|png|webp|gif)/i.test(String(comments || ''))
 }
 
+function safeDateInputValue(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function getApiUrl(path) {
   const p = String(path || '')
   if (!p.startsWith('/')) return p
@@ -272,7 +284,7 @@ export default function TodoListPage() {
                       <td><select value={row.status || 'Not Started'} onChange={(e) => setRowStatus(row.id, e.target.value)} style={{ background: '#0b1020', color: '#e8ecf3', border: '1px solid #334155', borderRadius: 6, padding: '6px 8px' }}>{STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></td>
                       <td style={{ minWidth: 160, fontSize: 13, opacity: 0.85 }}>{fmt(row.dateAdded)}</td>
                       <td style={{ minWidth: 135 }}>
-                        <input type='date' value={row.dueDate || ''} onChange={(e) => setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, dueDate: e.target.value } : r))} style={{ width: '100%', background: '#0b1020', color: '#e8ecf3', border: '1px solid #334155', borderRadius: 6, padding: '6px 8px' }} />
+                        <input type='date' value={safeDateInputValue(row.dueDate)} onChange={(e) => setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, dueDate: e.target.value } : r))} style={{ width: '100%', background: '#0b1020', color: '#e8ecf3', border: '1px solid #334155', borderRadius: 6, padding: '6px 8px' }} />
                       </td>
                       <td style={{ minWidth: 170, fontSize: 12 }}>
                         {row.kanbanCardId ? (
