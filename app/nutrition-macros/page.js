@@ -163,6 +163,9 @@ export default function NutritionMacrosPage() {
 
           <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
             <h2 style={{ marginTop: 0 }}>Daily Habit Totals + Weekly Progress</h2>
+            <div style={{ marginBottom: 10, opacity: 0.9, fontSize: 13 }}>
+              Weekly all-goals streak: <strong>{Math.round(data.weeklyHabits?.streaks?.allGoalsWeeks || 0)} week(s)</strong>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8 }}>
               <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}><div style={{ opacity: 0.72, fontSize: 12 }}>BJJ Today</div><div style={{ fontSize: 24, fontWeight: 700 }}>{Math.round(data.dailyHabitTotals?.bjjSessions || 0)}</div></div>
               <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}><div style={{ opacity: 0.72, fontSize: 12 }}>Push-ups Today</div><div style={{ fontSize: 24, fontWeight: 700 }}>{Math.round(data.dailyHabitTotals?.pushups || 0)}</div></div>
@@ -190,6 +193,32 @@ export default function NutritionMacrosPage() {
                   </div>
                 )
               })}
+            </div>
+          </section>
+
+          <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
+            <h2 style={{ marginTop: 0 }}>Daily Goal Trackers + Streaks</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8 }}>
+              <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}>
+                <div style={{ opacity: 0.72, fontSize: 12 }}>Protein Goal Today</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: data.dailyGoals?.proteinHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.proteinHit ? 'Hit' : 'Miss'}</div>
+                <div style={{ opacity: 0.75, fontSize: 12 }}>Streak: {Math.round(data.dailyGoals?.streaks?.proteinDays || 0)} day(s)</div>
+              </div>
+              <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}>
+                <div style={{ opacity: 0.72, fontSize: 12 }}>Creatine Goal Today</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: data.dailyGoals?.creatineHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.creatineHit ? 'Hit' : 'Miss'}</div>
+                <div style={{ opacity: 0.75, fontSize: 12 }}>Streak: {Math.round(data.dailyGoals?.streaks?.creatineDays || 0)} day(s)</div>
+              </div>
+              <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}>
+                <div style={{ opacity: 0.72, fontSize: 12 }}>Fish Oil Goal Today</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: data.dailyGoals?.fishOilHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.fishOilHit ? 'Hit' : 'Miss'}</div>
+                <div style={{ opacity: 0.75, fontSize: 12 }}>Streak: {Math.round(data.dailyGoals?.streaks?.fishOilDays || 0)} day(s)</div>
+              </div>
+              <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}>
+                <div style={{ opacity: 0.72, fontSize: 12 }}>All Daily Goals</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: data.dailyGoals?.allHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.allHit ? 'Hit' : 'Miss'}</div>
+                <div style={{ opacity: 0.75, fontSize: 12 }}>Streak: {Math.round(data.dailyGoals?.streaks?.allGoalsDays || 0)} day(s)</div>
+              </div>
             </div>
           </section>
 
@@ -300,6 +329,7 @@ export default function NutritionMacrosPage() {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               {[
                 ['creatine', 'Creatine 5g'],
+                ['fishOil', 'Fish oil'],
                 ['electrolytes', 'Electrolytes'],
                 ['proteinShake', 'Protein shake'],
                 ['magnesium', 'Magnesium (night)']
