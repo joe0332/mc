@@ -37,6 +37,20 @@ function hasSupportItems(comments) {
   return /\.\/media\/inbound\/[\w\-.]+\.(?:jpg|jpeg|png|webp|gif)/i.test(String(comments || ''))
 }
 
+function getApiUrl(path) {
+  const p = String(path || '')
+  if (!p.startsWith('/')) return p
+  if (typeof window === 'undefined') return p
+  return `${window.location.origin}${p}`
+}
+
+async function fetchJson(path, init) {
+  const res = await fetch(getApiUrl(path), init)
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`)
+  return json
+}
+
 export default function TodoListPage() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -54,9 +68,7 @@ export default function TodoListPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/todo-list', { cache: 'no-store' })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to load todo list')
+      const json = await fetchJson('/api/todo-list', { cache: 'no-store' })
       setRows(Array.isArray(json.rows) ? json.rows : [])
       setUpdatedAtMs(json.updatedAtMs || null)
     } catch (e) {
@@ -70,13 +82,11 @@ export default function TodoListPage() {
     setSaving(true)
     setError('')
     try {
-      const res = await fetch('/api/todo-list', {
+      const json = await fetchJson('/api/todo-list', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows })
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to save todo list')
       setRows(Array.isArray(json.rows) ? json.rows : [])
       setUpdatedAtMs(json.updatedAtMs || null)
     } catch (e) {
@@ -101,7 +111,7 @@ export default function TodoListPage() {
       detailsParts.push(`Status: ${row?.status || 'In Progress'}`)
       if (String(row?.comments || '').trim()) detailsParts.push(`Comments: ${String(row.comments).trim()}`)
 
-      const res = await fetch('/api/kanban', {
+      const json = await fetchJson('/api/kanban', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,8 +124,6 @@ export default function TodoListPage() {
           details: detailsParts.join('\n')
         })
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to create Kanban card')
 
       const cardId = String(json?.id || json?.card?.id || '')
       if (!cardId) throw new Error('Kanban card created but no card ID returned')
@@ -123,13 +131,12 @@ export default function TodoListPage() {
       const nextRows = rows.map((r) => r.id === rowId ? { ...r, kanbanCardId: cardId, kanbanSentAtMs: sentAt } : r)
       setRows(nextRows)
 
-      const saveRes = await fetch('/api/todo-list', {
+      const saveJson = await fetchJson('/api/todo-list', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: nextRows })
       })
-      const saveJson = await saveRes.json()
-      if (saveRes.ok) setUpdatedAtMs(saveJson.updatedAtMs || sentAt)
+      setUpdatedAtMs(saveJson.updatedAtMs || sentAt)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -141,13 +148,11 @@ export default function TodoListPage() {
 
   async function persistRows(nextRows) {
     try {
-      const res = await fetch('/api/todo-list', {
+      const json = await fetchJson('/api/todo-list', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: nextRows })
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to save todo list')
       setRows(Array.isArray(json.rows) ? json.rows : nextRows)
       setUpdatedAtMs(json.updatedAtMs || null)
     } catch (e) {
