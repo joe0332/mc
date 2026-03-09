@@ -34,10 +34,12 @@ export default function UnlockPage() {
         <h1 style={{ marginTop: 0, fontSize: 22 }}>Mission Control Unlock</h1>
         <p style={{ opacity: 0.8, marginTop: 4 }}>Enter 5-digit passcode</p>
         <input
+          type='password'
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
           inputMode='numeric'
-          placeholder='12345'
+          autoComplete='off'
+          placeholder='•••••'
           style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #334155', background: '#0b1020', color: '#e8ecf3' }}
         />
         {err && <div style={{ marginTop: 8, color: '#fca5a5', fontSize: 13 }}>{err}</div>}
