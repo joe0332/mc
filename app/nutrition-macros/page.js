@@ -197,7 +197,8 @@ export default function NutritionMacrosPage() {
           </section>
 
           <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
-            <h2 style={{ marginTop: 0 }}>Daily Goal Trackers + Streaks</h2>
+            <h2 style={{ marginTop: 0 }}>Daily + Weekly Goal Trackers</h2>
+            <div style={{ marginBottom: 8, opacity: 0.8, fontSize: 12 }}>Daily streaks</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8 }}>
               <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}>
                 <div style={{ opacity: 0.72, fontSize: 12 }}>Protein Goal Today</div>
@@ -219,6 +220,28 @@ export default function NutritionMacrosPage() {
                 <div style={{ fontSize: 20, fontWeight: 700, color: data.dailyGoals?.allHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.allHit ? 'Hit' : 'Miss'}</div>
                 <div style={{ opacity: 0.75, fontSize: 12 }}>Streak: {Math.round(data.dailyGoals?.streaks?.allGoalsDays || 0)} day(s)</div>
               </div>
+            </div>
+
+            <div style={{ marginTop: 12, marginBottom: 8, opacity: 0.8, fontSize: 12 }}>Weekly goals</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0,1fr))', gap: 8 }}>
+              {[
+                ['bjjSessions', 'BJJ Weekly Goal'],
+                ['pushups', 'Push-ups Weekly Goal'],
+                ['rows', 'Rows Weekly Goal'],
+                ['kbSwings', 'KB Swings Weekly Goal']
+              ].map(([key, label]) => {
+                const target = Number(data.weeklyHabits?.targets?.[key] || 0)
+                const progress = Number(data.weeklyHabits?.progress?.[key] || 0)
+                const done = progress >= target && target > 0
+                const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0
+                return (
+                  <div key={key} style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}>
+                    <div style={{ opacity: 0.72, fontSize: 12 }}>{label}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: done ? '#86efac' : '#fca5a5' }}>{done ? 'Hit' : 'In Progress'}</div>
+                    <div style={{ opacity: 0.75, fontSize: 12 }}>{Math.round(progress)} / {Math.round(target)} ({pct}%)</div>
+                  </div>
+                )
+              })}
             </div>
           </section>
 
