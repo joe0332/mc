@@ -1,4 +1,6 @@
 import {
+  addBiomarkerEntry,
+  addBowelLog,
   addHabitEntry,
   addNutritionEntry,
   addNutritionFeedback,
@@ -36,6 +38,16 @@ export async function POST(req) {
 
     if (action === 'add_habit_entry') {
       const saved = addHabitEntry({ date, entry: body?.entry })
+      return Response.json({ ok: true, saved, day: getNutritionDay(date) })
+    }
+
+    if (action === 'add_biomarker') {
+      const saved = addBiomarkerEntry({ date, entry: body?.entry })
+      return Response.json({ ok: true, saved, day: getNutritionDay(date) })
+    }
+
+    if (action === 'add_bowel') {
+      const saved = addBowelLog({ date, entry: body?.entry })
       return Response.json({ ok: true, saved, day: getNutritionDay(date) })
     }
 
