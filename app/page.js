@@ -712,7 +712,7 @@ export default function MissionControlPage() {
             <a href='/date-night-places' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Date Night</a>
             <a href='/mom-70-birthday-planner' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Mom 70th</a>
             <a href='/recipes' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Recipes</a>
-            <a href='/nutrition-macros' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Nutrition Macros</a>
+            <a href='/nutrition-macros' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Health Coach</a>
           </div>
           <button onClick={refresh} disabled={refreshing} style={{ background: '#2563eb', color: 'white', border: 0, borderRadius: 8, padding: '10px 14px', cursor: 'pointer' }}>
             {refreshing ? 'Refreshing…' : 'Refresh now'}
