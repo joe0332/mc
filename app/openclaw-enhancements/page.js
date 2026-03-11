@@ -6,7 +6,8 @@ const POTENTIAL_UPDATES = [
   'Harden small-model sandbox + tool deny defaults for untrusted input.',
   'Fix Browser Janitor PowerShell command path issue and validate sustained clean runs.',
   'Expand OpenClaw update triage to include auto-generated remediation checklist.',
-  'Add scheduled-job ownership taxonomy and recurring quarterly cleanup.'
+  'Add scheduled-job ownership taxonomy and recurring quarterly cleanup.',
+  'Evaluate PinchTab as an optional browser-runtime enhancement (pilot one non-critical workflow before any adoption).'
 ]
 
 const CONTROL_SUMMARY = [
