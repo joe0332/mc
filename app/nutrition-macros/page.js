@@ -166,17 +166,15 @@ export default function HealthCoachPage() {
                           <td style={tdStyle}><strong>{Math.round(d.totals?.protein || 0)}/{Math.round(d.totals?.carbs || 0)}/{Math.round(d.totals?.fats || 0)}/{Math.round(d.totals?.calories || 0)}</strong></td>
                           <td style={tdStyle}>
                             {(() => {
-                              const bm = d.biomarkers?.ketonesByMeal || {}
-                              const am = bm.breakfast?.latest ?? bm.other?.latest ?? '-'
-                              const pm = bm.dinner?.latest ?? bm.lunch?.latest ?? bm.snack?.latest ?? '-'
+                              const am = d.biomarkers?.ketonesAMLatest ?? d.biomarkers?.ketonesByMeal?.breakfast?.latest ?? d.biomarkers?.ketonesByMeal?.other?.latest ?? '-'
+                              const pm = d.biomarkers?.ketonesPMLatest ?? d.biomarkers?.ketonesByMeal?.dinner?.latest ?? d.biomarkers?.ketonesByMeal?.lunch?.latest ?? d.biomarkers?.ketonesByMeal?.snack?.latest ?? d.biomarkers?.ketonesByMeal?.snacks?.latest ?? '-'
                               return `AM: ${am} | PM: ${pm}`
                             })()}
                           </td>
                           <td style={tdStyle}>
                             {(() => {
-                              const bm = d.biomarkers?.glucoseByMeal || {}
-                              const am = bm.breakfast?.latest ?? bm.other?.latest ?? '-'
-                              const pm = bm.dinner?.latest ?? bm.lunch?.latest ?? bm.snack?.latest ?? '-'
+                              const am = d.biomarkers?.glucoseAMLatest ?? d.biomarkers?.glucoseByMeal?.breakfast?.latest ?? d.biomarkers?.glucoseByMeal?.other?.latest ?? '-'
+                              const pm = d.biomarkers?.glucosePMLatest ?? d.biomarkers?.glucoseByMeal?.dinner?.latest ?? d.biomarkers?.glucoseByMeal?.lunch?.latest ?? d.biomarkers?.glucoseByMeal?.snack?.latest ?? d.biomarkers?.glucoseByMeal?.snacks?.latest ?? '-'
                               return `AM: ${am} | PM: ${pm}`
                             })()}
                           </td>
