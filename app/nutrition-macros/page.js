@@ -223,6 +223,19 @@ export default function HealthCoachPage() {
                                 {m.note ? <div style={{ opacity: 0.75, fontSize: 12 }}>Note: {m.note}</div> : null}
                               </div>
                             ))}
+                            <div style={{ marginTop: 10, fontWeight: 700 }}>Notes</div>
+                            {(d.feedback || []).length === 0 ? (
+                              <div style={{ opacity: 0.8, marginTop: 4 }}>No notes logged for this day.</div>
+                            ) : (
+                              <div style={{ marginTop: 4 }}>
+                                {(d.feedback || []).map((f) => (
+                                  <div key={f.id || `${d.date}-${f.createdAtMs || 0}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
+                                    <div style={{ opacity: 0.7, fontSize: 12 }}>{fmtDateTime(f.createdAtMs)}</div>
+                                    <div>{f.text}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}
