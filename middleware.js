@@ -9,7 +9,8 @@ export function middleware(req) {
   const publicPaths = [
     '/unlock',
     '/api/auth/unlock',
-    '/api/auth/logout'
+    '/api/auth/logout',
+    '/stretch-dividend-strategy'
   ]
 
   if (
