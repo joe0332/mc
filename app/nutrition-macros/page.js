@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 
 function fmt(ts) {
   if (!ts) return '—'
@@ -10,6 +10,28 @@ function fmt(ts) {
 function toDateInputValue(d = new Date()) {
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function fmtMetric(value, digits = 1) {
+  return Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—'
+}
+
+function classifyA1c(a1c) {
+  const n = Number(a1c)
+  if (!Number.isFinite(n)) return 'No estimate yet'
+  if (n <= 5.2) return 'Excellent metabolic control'
+  if (n <= 5.5) return 'Healthy range'
+  if (n <= 5.7) return 'Approaching prediabetic threshold'
+  return 'Above target trend'
+}
+
+function classifyGki(gki) {
+  const n = Number(gki)
+  if (!Number.isFinite(n)) return 'Need glucose + ketones'
+  if (n < 3) return 'Deep ketosis'
+  if (n < 6) return 'Moderate ketosis'
+  if (n < 9) return 'Light ketosis / mixed fuel'
+  return 'Primarily glucose metabolism'
 }
 
 const card = { border: '1px solid #334155', borderRadius: 8, padding: 10 }
@@ -26,6 +48,18 @@ function streakText(current, longest, unit = 'day') {
   return `🔥 On streak: ${c} ${suffix}${pb}`
 }
 
+function syncHorizontalScroll(sourceRef, targetRef, lockRef) {
+  if (lockRef.current) return
+  const source = sourceRef.current
+  const target = targetRef.current
+  if (!source || !target) return
+  lockRef.current = true
+  target.scrollLeft = source.scrollLeft
+  window.requestAnimationFrame(() => {
+    lockRef.current = false
+  })
+}
+
 export default function HealthCoachPage() {
   const [date, setDate] = useState(toDateInputValue())
   const [data, setData] = useState(null)
@@ -38,6 +72,11 @@ export default function HealthCoachPage() {
   const [bioEntry, setBioEntry] = useState({ kind: 'glucose', mealSlot: 'breakfast', value: '', note: '' })
   const [bowelEntry, setBowelEntry] = useState({ stoolType: 'healthy', mealSlot: 'other', note: '' })
   const [expandedDays, setExpandedDays] = useState({})
+  const topScrollRef = useRef(null)
+  const topScrollInnerRef = useRef(null)
+  const bottomScrollRef = useRef(null)
+  const tableRef = useRef(null)
+  const scrollSyncLockRef = useRef(false)
 
   async function load() {
     setLoading(true)
@@ -75,7 +114,28 @@ export default function HealthCoachPage() {
 
   useEffect(() => { load() }, [date])
 
+  useEffect(() => {
+    function syncScrollWidths() {
+      const topOuter = topScrollRef.current
+      const topInner = topScrollInnerRef.current
+      const bottom = bottomScrollRef.current
+      const table = tableRef.current
+      if (!topOuter || !topInner || !bottom || !table) return
+      const contentWidth = Math.max(table.scrollWidth || 0, bottom.scrollWidth || 0, bottom.clientWidth || 0)
+      topInner.style.width = `${contentWidth}px`
+      const maxTop = Math.max(0, topOuter.scrollWidth - topOuter.clientWidth)
+      const maxBottom = Math.max(0, bottom.scrollWidth - bottom.clientWidth)
+      if (maxTop > 0 && maxBottom >= 0) {
+        topOuter.scrollLeft = maxBottom === 0 ? 0 : (bottom.scrollLeft / Math.max(1, maxBottom)) * maxTop
+      }
+    }
+    syncScrollWidths()
+    window.addEventListener('resize', syncScrollWidths)
+    return () => window.removeEventListener('resize', syncScrollWidths)
+  }, [data, expandedDays])
+
   const proteinPct = Math.min(100, Math.round(((data?.totals?.protein || 0) / Math.max(1, data?.targets?.proteinMin || 150)) * 100))
+  const todayIso = toDateInputValue()
   const allHistoryDays = (() => {
     const allDays = (data?.weeklyHistory || []).flatMap((w) => w.days || [])
     const uniqueByDate = new Map()
@@ -83,10 +143,13 @@ export default function HealthCoachPage() {
       if (!d?.date) continue
       if (!uniqueByDate.has(d.date)) uniqueByDate.set(d.date, d)
     }
-    return Array.from(uniqueByDate.values()).sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    return Array.from(uniqueByDate.values())
+      .filter((d) => String(d.date) <= todayIso)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
   })()
-  const currentWeekDates = new Set((((data?.weeklyHistory || []).find((w) => w.isCurrent)?.days) || []).map((d) => d.date))
-  const archivedDays = allHistoryDays.filter((d) => !currentWeekDates.has(d.date))
+
+  const rollingDays = allHistoryDays.slice(0, 8)
+  const archivedDays = allHistoryDays.slice(8)
 
   return (
     <main style={{ minHeight: '100vh', padding: 24, background: '#0b1020', color: '#e8ecf3', fontFamily: 'Inter, Segoe UI, sans-serif' }}>
@@ -114,12 +177,14 @@ export default function HealthCoachPage() {
             </div>
 
             <h2 style={{ marginTop: 14, marginBottom: 8 }}>Daily KPIs</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0,1fr))', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(0,1fr))', gap: 8 }}>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Protein Progress</div><div style={{ fontSize: 22, fontWeight: 700 }}>{Math.round(data.totals?.protein || 0)}g / {Math.round(data.targets?.proteinMin || 150)}g</div><div style={{ opacity: 0.75, fontSize: 12 }}>{proteinPct}% · {streakText(data.dailyGoals?.displayStreaks?.proteinDays, data.dailyGoals?.longestStreakDays?.proteinDays, 'day')}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Creatine</div><div style={{ fontSize: 22, fontWeight: 700, color: data.dailyGoals?.creatineHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.creatineHit ? 'Yes' : 'No'}</div><div style={{ opacity: 0.82, fontSize: 12 }}>{Math.round((data.dailyGoals?.creatineGrams || 0) * 10) / 10}g / {Math.round((data.dailyGoals?.creatineGoalGrams || 5) * 10) / 10}g{(data.dailyGoals?.creatineRemainingGrams || 0) > 0 ? ` · ${Math.round((data.dailyGoals?.creatineRemainingGrams || 0) * 10) / 10}g left` : ''}</div><div style={{ opacity: 0.75, fontSize: 12 }}>{streakText(data.dailyGoals?.displayStreaks?.creatineDays, data.dailyGoals?.longestStreakDays?.creatineDays, 'day')}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Fish Oil</div><div style={{ fontSize: 22, fontWeight: 700, color: data.supplements?.fishOil ? '#86efac' : '#fca5a5' }}>{data.supplements?.fishOil ? 'Yes' : 'No'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>{streakText(data.dailyGoals?.displayStreaks?.fishOilDays, data.dailyGoals?.longestStreakDays?.fishOilDays, 'day')}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Ketones</div><div style={{ fontSize: 22, fontWeight: 700 }}>{data.biomarkerSummary?.latestKetones ?? '—'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>Checks today: {data.biomarkerSummary?.ketonesCount || 0}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Blood Glucose</div><div style={{ fontSize: 22, fontWeight: 700 }}>{data.biomarkerSummary?.latestGlucose ?? '—'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>Checks today: {data.biomarkerSummary?.glucoseCount || 0}</div></div>
+              <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Current GKI</div><div style={{ fontSize: 22, fontWeight: 700 }}>{fmtMetric(data.biomarkerSummary?.gkiLatest, 1)}</div><div style={{ opacity: 0.75, fontSize: 12 }}>{classifyGki(data.biomarkerSummary?.gkiLatest)}</div></div>
+              <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Rolling est. A1C</div><div style={{ fontSize: 22, fontWeight: 700 }}>{fmtMetric(data.metabolics?.rollingEstimatedA1c, 2)}%</div><div style={{ opacity: 0.75, fontSize: 12 }}>{classifyA1c(data.metabolics?.rollingEstimatedA1c)} · {data.metabolics?.glucoseReadingCount || 0} glucose readings / {data.metabolics?.lookbackDays || 14}d</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Poops</div><div style={{ fontSize: 22, fontWeight: 700 }}>{data.biomarkerSummary?.bowelCount || 0}</div><div style={{ opacity: 0.75, fontSize: 12 }}>healthy {data.biomarkerSummary?.stoolCounts?.healthy || 0} · loose {data.biomarkerSummary?.stoolCounts?.loose || 0} · very loose {data.biomarkerSummary?.stoolCounts?.very_loose || 0}</div></div>
             </div>
 
@@ -136,240 +201,141 @@ export default function HealthCoachPage() {
           </section>
 
           <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
-            <h2 style={{ marginTop: 0 }}>Daily Log (Mon–Sun Calendar Week)</h2>
-            {(data.weeklyHistory || []).map((week) => {
-              const block = (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ textAlign: 'left', opacity: 0.9 }}>
-                        <th style={thStyle}>Date</th>
-                        <th style={thStyle}>Breakfast (P/C/F/Cal)</th>
-                        <th style={thStyle}>Lunch (P/C/F/Cal)</th>
-                        <th style={thStyle}>Dinner (P/C/F/Cal)</th>
-                        <th style={thStyle}>Snacks (P/C/F/Cal)</th>
-                        <th style={thStyle}>Daily Total (P/C/F/Cal)</th>
-                        <th style={thStyle}>Ketones (AM / PM)</th>
-                        <th style={thStyle}>Glucose (AM / PM)</th>
-                        <th style={{ ...thStyle, minWidth: 280 }}>Poops (daily summary)</th>
-                        <th style={thStyle}>Creatine</th>
-                        <th style={thStyle}>Fish Oil</th>
-                        <th style={thStyle}>BJJ</th>
-                        <th style={thStyle}>Push Reps</th>
-                        <th style={thStyle}>Push-ups</th>
-                        <th style={thStyle}>Pull/Rows</th>
-                        <th style={thStyle}>KB Swings</th>
-                        <th style={thStyle}>Pigeon Stretch</th>
-                        <th style={thStyle}>Quad Stretch</th>
-                        <th style={thStyle}>Iron Neck</th>
-                        <th style={thStyle}>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(week.days || []).map((d, i) => (
-                        <Fragment key={d.date}>
-                        <tr style={{ borderTop: '1px solid #2f4666', background: i % 2 === 0 ? '#031625' : '#12314a' }}>
-                          <td style={{ ...tdStyle, minWidth: 120 }}>{d.dayLabel} {d.date}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.breakfast?.protein || 0)}/{Math.round(d.byMeal?.breakfast?.carbs || 0)}/{Math.round(d.byMeal?.breakfast?.fats || 0)}/{Math.round(d.byMeal?.breakfast?.calories || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.lunch?.protein || 0)}/{Math.round(d.byMeal?.lunch?.carbs || 0)}/{Math.round(d.byMeal?.lunch?.fats || 0)}/{Math.round(d.byMeal?.lunch?.calories || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.dinner?.protein || 0)}/{Math.round(d.byMeal?.dinner?.carbs || 0)}/{Math.round(d.byMeal?.dinner?.fats || 0)}/{Math.round(d.byMeal?.dinner?.calories || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.snacks?.protein || 0)}/{Math.round(d.byMeal?.snacks?.carbs || 0)}/{Math.round(d.byMeal?.snacks?.fats || 0)}/{Math.round(d.byMeal?.snacks?.calories || 0)}</td>
-                          <td style={tdStyle}><strong>{Math.round(d.totals?.protein || 0)}/{Math.round(d.totals?.carbs || 0)}/{Math.round(d.totals?.fats || 0)}/{Math.round(d.totals?.calories || 0)}</strong></td>
-                          <td style={tdStyle}>
-                            {(() => {
-                              const am = d.biomarkers?.ketonesAMLatest ?? d.biomarkers?.ketonesByMeal?.breakfast?.latest ?? d.biomarkers?.ketonesByMeal?.other?.latest ?? '-'
-                              const pm = d.biomarkers?.ketonesPMLatest ?? d.biomarkers?.ketonesByMeal?.dinner?.latest ?? d.biomarkers?.ketonesByMeal?.lunch?.latest ?? d.biomarkers?.ketonesByMeal?.snack?.latest ?? d.biomarkers?.ketonesByMeal?.snacks?.latest ?? '-'
-                              return `AM: ${am} | PM: ${pm}`
-                            })()}
-                          </td>
-                          <td style={tdStyle}>
-                            {(() => {
-                              const am = d.biomarkers?.glucoseAMLatest ?? d.biomarkers?.glucoseByMeal?.breakfast?.latest ?? d.biomarkers?.glucoseByMeal?.other?.latest ?? '-'
-                              const pm = d.biomarkers?.glucosePMLatest ?? d.biomarkers?.glucoseByMeal?.dinner?.latest ?? d.biomarkers?.glucoseByMeal?.lunch?.latest ?? d.biomarkers?.glucoseByMeal?.snack?.latest ?? d.biomarkers?.glucoseByMeal?.snacks?.latest ?? '-'
-                              return `AM: ${am} | PM: ${pm}`
-                            })()}
-                          </td>
-                          <td style={{ ...tdStyle, minWidth: 280, whiteSpace: 'normal' }}>
-                            {(() => {
-                              const s = d.biomarkers?.stoolCounts || {}
-                              const total = d.biomarkers?.bowelCount || 0
-                              const healthy = s.healthy || 0
-                              const loose = s.loose || 0
-                              const veryLoose = s.very_loose || 0
-                              const bm = d.biomarkers?.bowelByMeal || {}
-                              const amCount = (bm.breakfast?.total || 0)
-                              const pmCount = (bm.lunch?.total || 0) + (bm.dinner?.total || 0) + (bm.snack?.total || 0)
-                              const timing = amCount >= pmCount ? 'mostly AM' : 'mostly PM'
-                              return `${total} total (${healthy} healthy, ${loose} loose, ${veryLoose} very loose) · ${timing}`
-                            })()}
-                          </td>
-                          <td style={tdStyle}>{Math.round((d.supplements?.creatineGrams || 0) * 10) / 10}g / 5g {d.supplements?.creatine ? '✅' : '—'}</td>
-                          <td style={tdStyle}>{d.supplements?.fishOil ? '✅' : '—'}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.bjjSessions || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushReps || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushups || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.rows || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.kbSwings || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.pigeonStretch || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.quadStretch || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.ironNeck || 0)}</td>
-                          <td style={tdStyle}>
-                            <button
-                              onClick={() => setExpandedDays((prev) => ({ ...prev, [d.date]: !prev[d.date] }))}
-                              style={{ background: '#334155', color: 'white', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
-                            >
-                              {expandedDays[d.date] ? 'Hide' : 'View'}
-                            </button>
-                          </td>
-                        </tr>
-                      {expandedDays[d.date] && (
-                        <tr style={{ background: '#0a1f31' }}>
-                          <td colSpan={21} style={{ padding: '10px 12px', whiteSpace: 'normal' }}>
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Logged meals/items for {d.date}</div>
-                            {(d.mealEntries || []).length === 0 && <div style={{ opacity: 0.8 }}>No meal details logged for this day.</div>}
-                            {(d.mealEntries || []).map((m) => (
-                              <div key={m.id || `${m.ts}-${m.label}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
-                                <div style={{ fontSize: 13, opacity: 0.85 }}>{m.label} — P/C/F/Cal: {Math.round(m.protein)}/{Math.round(m.carbs)}/{Math.round(m.fats)}/{Math.round(m.calories)}</div>
-                                <div>{m.items || '—'}</div>
-                                {m.note ? <div style={{ opacity: 0.75, fontSize: 12 }}>Note: {m.note}</div> : null}
-                              </div>
-                            ))}
-                            <div style={{ marginTop: 10, fontWeight: 700 }}>Notes</div>
-                            {(d.feedback || []).length === 0 ? (
-                              <div style={{ opacity: 0.8, marginTop: 4 }}>No notes logged for this day.</div>
-                            ) : (
-                              <div style={{ marginTop: 4 }}>
-                                {(d.feedback || []).map((f) => (
-                                  <div key={f.id || `${d.date}-${f.createdAtMs || 0}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
-                                    <div style={{ opacity: 0.7, fontSize: 12 }}>{fmtDateTime(f.createdAtMs)}</div>
-                                    <div>{f.text}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-
-              if (week.isCurrent) {
-                return (
-                  <div key={week.weekStart} style={{ marginBottom: 12 }}>
-                    <h3 style={{ marginBottom: 8 }}>Current Week: {week.weekStart} → {week.weekEnd}</h3>
-                    {block}
-                  </div>
-                )
-              }
-
-              return (
-                <details key={week.weekStart} style={{ marginBottom: 10 }}>
-                  <summary style={{ cursor: 'pointer', padding: '6px 0' }}>Previous Week: {week.weekStart} → {week.weekEnd}</summary>
-                  <div style={{ marginTop: 8 }}>{block}</div>
-                </details>
-              )
-            })}
-          </section>
-
-          <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
-            <h2 style={{ marginTop: 0 }}>Historical Archive (Older Rows)</h2>
-            <div style={{ opacity: 0.78, marginBottom: 8, fontSize: 13 }}>Bottom archive table for anything outside the current week block, so older history stays visible in one place.</div>
-            {archivedDays.length === 0 ? (
-              <div style={{ opacity: 0.8 }}>No archived rows yet.</div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', opacity: 0.9 }}>
-                      <th style={thStyle}>Date</th>
-                      <th style={thStyle}>Breakfast (P/C/F/Cal)</th>
-                      <th style={thStyle}>Lunch (P/C/F/Cal)</th>
-                      <th style={thStyle}>Dinner (P/C/F/Cal)</th>
-                      <th style={thStyle}>Snacks (P/C/F/Cal)</th>
-                      <th style={thStyle}>Daily Total (P/C/F/Cal)</th>
-                      <th style={thStyle}>Ketones (AM / PM)</th>
-                      <th style={thStyle}>Glucose (AM / PM)</th>
-                      <th style={{ ...thStyle, minWidth: 280 }}>Poops (daily summary)</th>
-                      <th style={thStyle}>Creatine</th>
-                      <th style={thStyle}>Fish Oil</th>
-                      <th style={thStyle}>BJJ</th>
-                      <th style={thStyle}>Push Reps</th>
-                      <th style={thStyle}>Push-ups</th>
-                      <th style={thStyle}>Pull/Rows</th>
-                      <th style={thStyle}>KB Swings</th>
-                      <th style={thStyle}>Pigeon Stretch</th>
-                      <th style={thStyle}>Quad Stretch</th>
-                      <th style={thStyle}>Iron Neck</th>
-                      <th style={thStyle}>Details</th>
+            <h2 style={{ marginTop: 0 }}>Daily Log (Rolling 7 Days + Today)</h2>
+            <div style={{ opacity: 0.78, marginBottom: 8, fontSize: 13 }}>Newest day on top (today first), then previous 7 days.</div>
+            <div
+              ref={topScrollRef}
+              onScroll={() => syncHorizontalScroll(topScrollRef, bottomScrollRef, scrollSyncLockRef)}
+              style={{ overflowX: 'auto', overflowY: 'hidden', marginBottom: 6 }}
+            >
+              <div ref={topScrollInnerRef} style={{ width: 1, height: 1 }} />
+            </div>
+            <div
+              ref={bottomScrollRef}
+              onScroll={() => syncHorizontalScroll(bottomScrollRef, topScrollRef, scrollSyncLockRef)}
+              style={{ overflowX: 'auto' }}
+            >
+              <table ref={tableRef} style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'separate', borderSpacing: '0 4px', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', opacity: 0.9 }}>
+                    <th style={thStyle}>Date</th>
+                    <th style={thStyle}>Breakfast (P/C/F/Cal)</th>
+                    <th style={thStyle}>Lunch (P/C/F/Cal)</th>
+                    <th style={thStyle}>Dinner (P/C/F/Cal)</th>
+                    <th style={thStyle}>Snacks (P/C/F/Cal)</th>
+                    <th style={thStyle}>Daily Total (P/C/F/Cal)</th>
+                    <th style={thStyle}>Ketones (AM / PM)</th>
+                    <th style={thStyle}>Glucose (AM / PM)</th>
+                    <th style={thStyle}>GKI / est. A1C</th>
+                    <th style={{ ...thStyle, minWidth: 280 }}>Poops (daily summary)</th>
+                    <th style={thStyle}>Creatine</th>
+                    <th style={thStyle}>Fish Oil</th>
+                    <th style={thStyle}>BJJ</th>
+                    <th style={thStyle}>Push Reps</th>
+                    <th style={thStyle}>Push-ups</th>
+                    <th style={thStyle}>Pull/Rows</th>
+                    <th style={thStyle}>KB Swings</th>
+                    <th style={thStyle}>Pigeon Stretch</th>
+                    <th style={thStyle}>Quad Stretch</th>
+                    <th style={thStyle}>Iron Neck</th>
+                    <th style={thStyle}>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rollingDays.map((d, i) => (
+                    <Fragment key={d.date}>
+                    <tr style={{ borderTop: '1px solid #2f4666', background: i % 2 === 0 ? '#031625' : '#12314a' }}>
+                      <td style={{ ...tdStyle, minWidth: 120 }}>{d.dayLabel} {d.date}</td>
+                      <td style={tdStyle}>{Math.round(d.byMeal?.breakfast?.protein || 0)}/{Math.round(d.byMeal?.breakfast?.carbs || 0)}/{Math.round(d.byMeal?.breakfast?.fats || 0)}/{Math.round(d.byMeal?.breakfast?.calories || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.byMeal?.lunch?.protein || 0)}/{Math.round(d.byMeal?.lunch?.carbs || 0)}/{Math.round(d.byMeal?.lunch?.fats || 0)}/{Math.round(d.byMeal?.lunch?.calories || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.byMeal?.dinner?.protein || 0)}/{Math.round(d.byMeal?.dinner?.carbs || 0)}/{Math.round(d.byMeal?.dinner?.fats || 0)}/{Math.round(d.byMeal?.dinner?.calories || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.byMeal?.snacks?.protein || 0)}/{Math.round(d.byMeal?.snacks?.carbs || 0)}/{Math.round(d.byMeal?.snacks?.fats || 0)}/{Math.round(d.byMeal?.snacks?.calories || 0)}</td>
+                      <td style={tdStyle}><strong>{Math.round(d.totals?.protein || 0)}/{Math.round(d.totals?.carbs || 0)}/{Math.round(d.totals?.fats || 0)}/{Math.round(d.totals?.calories || 0)}</strong></td>
+                      <td style={tdStyle}>
+                        {(() => {
+                          const am = d.biomarkers?.ketonesAMLatest ?? d.biomarkers?.ketonesByMeal?.breakfast?.latest ?? d.biomarkers?.ketonesByMeal?.other?.latest ?? '-'
+                          const pm = d.biomarkers?.ketonesPMLatest ?? d.biomarkers?.ketonesByMeal?.dinner?.latest ?? d.biomarkers?.ketonesByMeal?.lunch?.latest ?? d.biomarkers?.ketonesByMeal?.snack?.latest ?? d.biomarkers?.ketonesByMeal?.snacks?.latest ?? '-'
+                          return `AM: ${am} | PM: ${pm}`
+                        })()}
+                      </td>
+                      <td style={tdStyle}>
+                        {(() => {
+                          const am = d.biomarkers?.glucoseAMLatest ?? d.biomarkers?.glucoseByMeal?.breakfast?.latest ?? d.biomarkers?.glucoseByMeal?.other?.latest ?? '-'
+                          const pm = d.biomarkers?.glucosePMLatest ?? d.biomarkers?.glucoseByMeal?.dinner?.latest ?? d.biomarkers?.glucoseByMeal?.lunch?.latest ?? d.biomarkers?.glucoseByMeal?.snack?.latest ?? d.biomarkers?.glucoseByMeal?.snacks?.latest ?? '-'
+                          return `AM: ${am} | PM: ${pm}`
+                        })()}
+                      </td>
+                      <td style={{ ...tdStyle, minWidth: 170, whiteSpace: 'normal' }}>
+                        <div>GKI: {fmtMetric(d.biomarkers?.gkiLatest, 1)}</div>
+                        <div style={{ opacity: 0.8, fontSize: 12 }}>{classifyGki(d.biomarkers?.gkiLatest)}</div>
+                        <div style={{ marginTop: 4 }}>A1C: {fmtMetric(d.metabolics?.rollingEstimatedA1c, 2)}%</div>
+                      </td>
+                      <td style={{ ...tdStyle, minWidth: 280, whiteSpace: 'normal' }}>
+                        {(() => {
+                          const s = d.biomarkers?.stoolCounts || {}
+                          const total = d.biomarkers?.bowelCount || 0
+                          const healthy = s.healthy || 0
+                          const loose = s.loose || 0
+                          const veryLoose = s.very_loose || 0
+                          const bm = d.biomarkers?.bowelByMeal || {}
+                          const amCount = (bm.breakfast?.total || 0)
+                          const pmCount = (bm.lunch?.total || 0) + (bm.dinner?.total || 0) + (bm.snack?.total || 0)
+                          const timing = amCount >= pmCount ? 'mostly AM' : 'mostly PM'
+                          return `${total} total (${healthy} healthy, ${loose} loose, ${veryLoose} very loose) · ${timing}`
+                        })()}
+                      </td>
+                      <td style={tdStyle}>{Math.round((d.supplements?.creatineGrams || 0) * 10) / 10}g / 5g {d.supplements?.creatine ? '✅' : '—'}</td>
+                      <td style={tdStyle}>{d.supplements?.fishOil ? '✅' : '—'}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.bjjSessions || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.pushReps || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.pushups || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.rows || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.kbSwings || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.pigeonStretch || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.quadStretch || 0)}</td>
+                      <td style={tdStyle}>{Math.round(d.habitTotals?.ironNeck || 0)}</td>
+                      <td style={tdStyle}>
+                        <button
+                          onClick={() => setExpandedDays((prev) => ({ ...prev, [d.date]: !prev[d.date] }))}
+                          style={{ background: '#334155', color: 'white', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
+                        >
+                          {expandedDays[d.date] ? 'Hide' : 'View'}
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {archivedDays.map((d, i) => (
-                      <Fragment key={`archive-${d.date}`}>
-                        <tr style={{ borderTop: '1px solid #2f4666', background: i % 2 === 0 ? '#031625' : '#12314a' }}>
-                          <td style={{ ...tdStyle, minWidth: 120 }}>{d.dayLabel} {d.date}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.breakfast?.protein || 0)}/{Math.round(d.byMeal?.breakfast?.carbs || 0)}/{Math.round(d.byMeal?.breakfast?.fats || 0)}/{Math.round(d.byMeal?.breakfast?.calories || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.lunch?.protein || 0)}/{Math.round(d.byMeal?.lunch?.carbs || 0)}/{Math.round(d.byMeal?.lunch?.fats || 0)}/{Math.round(d.byMeal?.lunch?.calories || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.dinner?.protein || 0)}/{Math.round(d.byMeal?.dinner?.carbs || 0)}/{Math.round(d.byMeal?.dinner?.fats || 0)}/{Math.round(d.byMeal?.dinner?.calories || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.byMeal?.snacks?.protein || 0)}/{Math.round(d.byMeal?.snacks?.carbs || 0)}/{Math.round(d.byMeal?.snacks?.fats || 0)}/{Math.round(d.byMeal?.snacks?.calories || 0)}</td>
-                          <td style={tdStyle}><strong>{Math.round(d.totals?.protein || 0)}/{Math.round(d.totals?.carbs || 0)}/{Math.round(d.totals?.fats || 0)}/{Math.round(d.totals?.calories || 0)}</strong></td>
-                          <td style={tdStyle}>{(() => { const am = d.biomarkers?.ketonesAMLatest ?? d.biomarkers?.ketonesByMeal?.breakfast?.latest ?? d.biomarkers?.ketonesByMeal?.other?.latest ?? '-'; const pm = d.biomarkers?.ketonesPMLatest ?? d.biomarkers?.ketonesByMeal?.dinner?.latest ?? d.biomarkers?.ketonesByMeal?.lunch?.latest ?? d.biomarkers?.ketonesByMeal?.snack?.latest ?? d.biomarkers?.ketonesByMeal?.snacks?.latest ?? '-'; return `AM: ${am} | PM: ${pm}` })()}</td>
-                          <td style={tdStyle}>{(() => { const am = d.biomarkers?.glucoseAMLatest ?? d.biomarkers?.glucoseByMeal?.breakfast?.latest ?? d.biomarkers?.glucoseByMeal?.other?.latest ?? '-'; const pm = d.biomarkers?.glucosePMLatest ?? d.biomarkers?.glucoseByMeal?.dinner?.latest ?? d.biomarkers?.glucoseByMeal?.lunch?.latest ?? d.biomarkers?.glucoseByMeal?.snack?.latest ?? d.biomarkers?.glucoseByMeal?.snacks?.latest ?? '-'; return `AM: ${am} | PM: ${pm}` })()}</td>
-                          <td style={{ ...tdStyle, minWidth: 280, whiteSpace: 'normal' }}>{(() => { const s = d.biomarkers?.stoolCounts || {}; const total = d.biomarkers?.bowelCount || 0; const healthy = s.healthy || 0; const loose = s.loose || 0; const veryLoose = s.very_loose || 0; const bm = d.biomarkers?.bowelByMeal || {}; const amCount = (bm.breakfast?.total || 0); const pmCount = (bm.lunch?.total || 0) + (bm.dinner?.total || 0) + (bm.snack?.total || 0); const timing = amCount >= pmCount ? 'mostly AM' : 'mostly PM'; return `${total} total (${healthy} healthy, ${loose} loose, ${veryLoose} very loose) · ${timing}` })()}</td>
-                          <td style={tdStyle}>{Math.round((d.supplements?.creatineGrams || 0) * 10) / 10}g / 5g {d.supplements?.creatine ? '✅' : '—'}</td>
-                          <td style={tdStyle}>{d.supplements?.fishOil ? '✅' : '—'}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.bjjSessions || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushReps || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushups || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.rows || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.kbSwings || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.pigeonStretch || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.quadStretch || 0)}</td>
-                          <td style={tdStyle}>{Math.round(d.habitTotals?.ironNeck || 0)}</td>
-                          <td style={tdStyle}>
-                            <button onClick={() => setExpandedDays((prev) => ({ ...prev, [d.date]: !prev[d.date] }))} style={{ background: '#334155', color: 'white', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
-                              {expandedDays[d.date] ? 'Hide' : 'View'}
-                            </button>
-                          </td>
-                        </tr>
-                      {expandedDays[d.date] && (
-                        <tr style={{ background: '#0a1f31' }}>
-                          <td colSpan={21} style={{ padding: '10px 12px', whiteSpace: 'normal' }}>
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Logged meals/items for {d.date}</div>
-                            {(d.mealEntries || []).length === 0 && <div style={{ opacity: 0.8 }}>No meal details logged for this day.</div>}
-                            {(d.mealEntries || []).map((m) => (
-                              <div key={m.id || `${m.ts}-${m.label}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
-                                <div style={{ fontSize: 13, opacity: 0.85 }}>{m.label} — P/C/F/Cal: {Math.round(m.protein)}/{Math.round(m.carbs)}/{Math.round(m.fats)}/{Math.round(m.calories)}</div>
-                                <div>{m.items || '—'}</div>
-                                {m.note ? <div style={{ opacity: 0.75, fontSize: 12 }}>Note: {m.note}</div> : null}
-                              </div>
-                            ))}
-                            <div style={{ marginTop: 10, fontWeight: 700 }}>Notes</div>
-                            {(d.feedback || []).length === 0 ? (
-                              <div style={{ opacity: 0.8, marginTop: 4 }}>No notes logged for this day.</div>
-                            ) : (
-                              <div style={{ marginTop: 4 }}>
-                                {(d.feedback || []).map((f) => (
-                                  <div key={f.id || `${d.date}-${f.createdAtMs || 0}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
-                                    <div style={{ opacity: 0.7, fontSize: 12 }}>{fmtDateTime(f.createdAtMs)}</div>
-                                    <div>{f.text}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    {expandedDays[d.date] && (
+                      <tr style={{ background: '#0a1f31' }}>
+                        <td colSpan={22} style={{ padding: '10px 12px', whiteSpace: 'normal' }}>
+                          <div style={{ fontWeight: 700, marginBottom: 6 }}>Logged meals/items for {d.date}</div>
+                          {(d.mealEntries || []).length === 0 && <div style={{ opacity: 0.8 }}>No meal details logged for this day.</div>}
+                          {(d.mealEntries || []).map((m) => (
+                            <div key={m.id || `${m.ts}-${m.label}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
+                              <div style={{ fontSize: 13, opacity: 0.85 }}>{m.label} — P/C/F/Cal: {Math.round(m.protein)}/{Math.round(m.carbs)}/{Math.round(m.fats)}/{Math.round(m.calories)}</div>
+                              <div>{m.items || '—'}</div>
+                              {m.note ? <div style={{ opacity: 0.75, fontSize: 12 }}>Note: {m.note}</div> : null}
+                            </div>
+                          ))}
+                          <div style={{ marginTop: 10, fontWeight: 700 }}>Notes</div>
+                          {(d.feedback || []).length === 0 ? (
+                            <div style={{ opacity: 0.8, marginTop: 4 }}>No notes logged for this day.</div>
+                          ) : (
+                            <div style={{ marginTop: 4 }}>
+                              {(d.feedback || []).map((f) => (
+                                <div key={f.id || `${d.date}-${f.createdAtMs || 0}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
+                                  <div style={{ opacity: 0.7, fontSize: 12 }}>{fmt(f.createdAtMs)}</div>
+                                  <div>{f.text}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
@@ -445,6 +411,94 @@ export default function HealthCoachPage() {
                 <div style={{ fontSize: 13, opacity: 0.9 }}>All Weekly Goals: {Math.round(data.weeklyHabits?.longestStreakWeeks?.all || 0)} week(s)</div>
               </div>
             </div>
+          </section>
+
+          <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
+            <h2 style={{ marginTop: 0 }}>Historical Archive (Older Than Rolling Window)</h2>
+            <div style={{ opacity: 0.78, marginBottom: 8, fontSize: 13 }}>These are the rows that have rolled out of the current 7-day view, kept here for long-term review.</div>
+            {archivedDays.length === 0 ? (
+              <div style={{ opacity: 0.8 }}>No archived rows yet.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'separate', borderSpacing: '0 4px', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', opacity: 0.9 }}>
+                      <th style={thStyle}>Date</th>
+                      <th style={thStyle}>Breakfast (P/C/F/Cal)</th>
+                      <th style={thStyle}>Lunch (P/C/F/Cal)</th>
+                      <th style={thStyle}>Dinner (P/C/F/Cal)</th>
+                      <th style={thStyle}>Snacks (P/C/F/Cal)</th>
+                      <th style={thStyle}>Daily Total (P/C/F/Cal)</th>
+                      <th style={thStyle}>Ketones (AM / PM)</th>
+                      <th style={thStyle}>Glucose (AM / PM)</th>
+                      <th style={thStyle}>GKI / est. A1C</th>
+                      <th style={{ ...thStyle, minWidth: 280 }}>Poops (daily summary)</th>
+                      <th style={thStyle}>Creatine</th>
+                      <th style={thStyle}>Fish Oil</th>
+                      <th style={thStyle}>BJJ</th>
+                      <th style={thStyle}>Push Reps</th>
+                      <th style={thStyle}>Push-ups</th>
+                      <th style={thStyle}>Pull/Rows</th>
+                      <th style={thStyle}>KB Swings</th>
+                      <th style={thStyle}>Pigeon Stretch</th>
+                      <th style={thStyle}>Quad Stretch</th>
+                      <th style={thStyle}>Iron Neck</th>
+                      <th style={thStyle}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archivedDays.map((d, i) => (
+                      <Fragment key={`archive-${d.date}`}>
+                        <tr style={{ borderTop: '1px solid #2f4666', background: i % 2 === 0 ? '#031625' : '#12314a' }}>
+                          <td style={{ ...tdStyle, minWidth: 120 }}>{d.dayLabel} {d.date}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.breakfast?.protein || 0)}/{Math.round(d.byMeal?.breakfast?.carbs || 0)}/{Math.round(d.byMeal?.breakfast?.fats || 0)}/{Math.round(d.byMeal?.breakfast?.calories || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.lunch?.protein || 0)}/{Math.round(d.byMeal?.lunch?.carbs || 0)}/{Math.round(d.byMeal?.lunch?.fats || 0)}/{Math.round(d.byMeal?.lunch?.calories || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.dinner?.protein || 0)}/{Math.round(d.byMeal?.dinner?.carbs || 0)}/{Math.round(d.byMeal?.dinner?.fats || 0)}/{Math.round(d.byMeal?.dinner?.calories || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.snacks?.protein || 0)}/{Math.round(d.byMeal?.snacks?.carbs || 0)}/{Math.round(d.byMeal?.snacks?.fats || 0)}/{Math.round(d.byMeal?.snacks?.calories || 0)}</td>
+                          <td style={tdStyle}><strong>{Math.round(d.totals?.protein || 0)}/{Math.round(d.totals?.carbs || 0)}/{Math.round(d.totals?.fats || 0)}/{Math.round(d.totals?.calories || 0)}</strong></td>
+                          <td style={tdStyle}>{(() => { const am = d.biomarkers?.ketonesAMLatest ?? d.biomarkers?.ketonesByMeal?.breakfast?.latest ?? d.biomarkers?.ketonesByMeal?.other?.latest ?? '-'; const pm = d.biomarkers?.ketonesPMLatest ?? d.biomarkers?.ketonesByMeal?.dinner?.latest ?? d.biomarkers?.ketonesByMeal?.lunch?.latest ?? d.biomarkers?.ketonesByMeal?.snack?.latest ?? d.biomarkers?.ketonesByMeal?.snacks?.latest ?? '-'; return `AM: ${am} | PM: ${pm}` })()}</td>
+                          <td style={tdStyle}>{(() => { const am = d.biomarkers?.glucoseAMLatest ?? d.biomarkers?.glucoseByMeal?.breakfast?.latest ?? d.biomarkers?.glucoseByMeal?.other?.latest ?? '-'; const pm = d.biomarkers?.glucosePMLatest ?? d.biomarkers?.glucoseByMeal?.dinner?.latest ?? d.biomarkers?.glucoseByMeal?.lunch?.latest ?? d.biomarkers?.glucoseByMeal?.snack?.latest ?? d.biomarkers?.glucoseByMeal?.snacks?.latest ?? '-'; return `AM: ${am} | PM: ${pm}` })()}</td>
+                          <td style={{ ...tdStyle, minWidth: 170, whiteSpace: 'normal' }}><div>GKI: {fmtMetric(d.biomarkers?.gkiLatest, 1)}</div><div style={{ opacity: 0.8, fontSize: 12 }}>{classifyGki(d.biomarkers?.gkiLatest)}</div><div style={{ marginTop: 4 }}>A1C: {fmtMetric(d.metabolics?.rollingEstimatedA1c, 2)}%</div></td>
+                          <td style={{ ...tdStyle, minWidth: 280, whiteSpace: 'normal' }}>{(() => { const s = d.biomarkers?.stoolCounts || {}; const total = d.biomarkers?.bowelCount || 0; const healthy = s.healthy || 0; const loose = s.loose || 0; const veryLoose = s.very_loose || 0; const bm = d.biomarkers?.bowelByMeal || {}; const amCount = (bm.breakfast?.total || 0); const pmCount = (bm.lunch?.total || 0) + (bm.dinner?.total || 0) + (bm.snack?.total || 0); const timing = amCount >= pmCount ? 'mostly AM' : 'mostly PM'; return `${total} total (${healthy} healthy, ${loose} loose, ${veryLoose} very loose) · ${timing}` })()}</td>
+                          <td style={tdStyle}>{Math.round((d.supplements?.creatineGrams || 0) * 10) / 10}g / 5g {d.supplements?.creatine ? '✅' : '—'}</td>
+                          <td style={tdStyle}>{d.supplements?.fishOil ? '✅' : '—'}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.bjjSessions || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushReps || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushups || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.rows || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.kbSwings || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.pigeonStretch || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.quadStretch || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.ironNeck || 0)}</td>
+                          <td style={tdStyle}>
+                            <button onClick={() => setExpandedDays((prev) => ({ ...prev, [d.date]: !prev[d.date] }))} style={{ background: '#334155', color: 'white', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
+                              {expandedDays[d.date] ? 'Hide' : 'View'}
+                            </button>
+                          </td>
+                        </tr>
+                        {expandedDays[d.date] && (
+                          <tr style={{ background: '#0a1f31' }}>
+                            <td colSpan={22} style={{ padding: '10px 12px', whiteSpace: 'normal' }}>
+                              <div style={{ fontWeight: 700, marginBottom: 6 }}>Logged meals/items for {d.date}</div>
+                              {(d.mealEntries || []).length === 0 && <div style={{ opacity: 0.8 }}>No meal details logged for this day.</div>}
+                              {(d.mealEntries || []).map((m) => (
+                                <div key={m.id || `${m.ts}-${m.label}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
+                                  <div style={{ fontSize: 13, opacity: 0.85 }}>{m.label} — P/C/F/Cal: {Math.round(m.protein)}/{Math.round(m.carbs)}/{Math.round(m.fats)}/{Math.round(m.calories)}</div>
+                                  <div>{m.items || '—'}</div>
+                                  {m.note ? <div style={{ opacity: 0.75, fontSize: 12 }}>Note: {m.note}</div> : null}
+                                </div>
+                              ))}
+                              <div style={{ marginTop: 10, fontWeight: 700 }}>Notes</div>
+                              {(d.feedback || []).length === 0 ? <div style={{ opacity: 0.8, marginTop: 4 }}>No notes logged for this day.</div> : <div style={{ marginTop: 4 }}>{(d.feedback || []).map((f) => (<div key={f.id || `${d.date}-${f.createdAtMs || 0}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}><div style={{ opacity: 0.7, fontSize: 12 }}>{fmt(f.createdAtMs)}</div><div>{f.text}</div></div>))}</div>}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </>
       )}
