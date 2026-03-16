@@ -76,6 +76,17 @@ export default function HealthCoachPage() {
   useEffect(() => { load() }, [date])
 
   const proteinPct = Math.min(100, Math.round(((data?.totals?.protein || 0) / Math.max(1, data?.targets?.proteinMin || 150)) * 100))
+  const allHistoryDays = (() => {
+    const allDays = (data?.weeklyHistory || []).flatMap((w) => w.days || [])
+    const uniqueByDate = new Map()
+    for (const d of allDays) {
+      if (!d?.date) continue
+      if (!uniqueByDate.has(d.date)) uniqueByDate.set(d.date, d)
+    }
+    return Array.from(uniqueByDate.values()).sort((a, b) => String(b.date).localeCompare(String(a.date)))
+  })()
+  const currentWeekDates = new Set((((data?.weeklyHistory || []).find((w) => w.isCurrent)?.days) || []).map((d) => d.date))
+  const archivedDays = allHistoryDays.filter((d) => !currentWeekDates.has(d.date))
 
   return (
     <main style={{ minHeight: '100vh', padding: 24, background: '#0b1020', color: '#e8ecf3', fontFamily: 'Inter, Segoe UI, sans-serif' }}>
@@ -105,7 +116,7 @@ export default function HealthCoachPage() {
             <h2 style={{ marginTop: 14, marginBottom: 8 }}>Daily KPIs</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0,1fr))', gap: 8 }}>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Protein Progress</div><div style={{ fontSize: 22, fontWeight: 700 }}>{Math.round(data.totals?.protein || 0)}g / {Math.round(data.targets?.proteinMin || 150)}g</div><div style={{ opacity: 0.75, fontSize: 12 }}>{proteinPct}% · {streakText(data.dailyGoals?.displayStreaks?.proteinDays, data.dailyGoals?.longestStreakDays?.proteinDays, 'day')}</div></div>
-              <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Creatine</div><div style={{ fontSize: 22, fontWeight: 700, color: data.supplements?.creatine ? '#86efac' : '#fca5a5' }}>{data.supplements?.creatine ? 'Yes' : 'No'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>{streakText(data.dailyGoals?.displayStreaks?.creatineDays, data.dailyGoals?.longestStreakDays?.creatineDays, 'day')}</div></div>
+              <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Creatine</div><div style={{ fontSize: 22, fontWeight: 700, color: data.dailyGoals?.creatineHit ? '#86efac' : '#fca5a5' }}>{data.dailyGoals?.creatineHit ? 'Yes' : 'No'}</div><div style={{ opacity: 0.82, fontSize: 12 }}>{Math.round((data.dailyGoals?.creatineGrams || 0) * 10) / 10}g / {Math.round((data.dailyGoals?.creatineGoalGrams || 5) * 10) / 10}g{(data.dailyGoals?.creatineRemainingGrams || 0) > 0 ? ` · ${Math.round((data.dailyGoals?.creatineRemainingGrams || 0) * 10) / 10}g left` : ''}</div><div style={{ opacity: 0.75, fontSize: 12 }}>{streakText(data.dailyGoals?.displayStreaks?.creatineDays, data.dailyGoals?.longestStreakDays?.creatineDays, 'day')}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Fish Oil</div><div style={{ fontSize: 22, fontWeight: 700, color: data.supplements?.fishOil ? '#86efac' : '#fca5a5' }}>{data.supplements?.fishOil ? 'Yes' : 'No'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>{streakText(data.dailyGoals?.displayStreaks?.fishOilDays, data.dailyGoals?.longestStreakDays?.fishOilDays, 'day')}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Ketones</div><div style={{ fontSize: 22, fontWeight: 700 }}>{data.biomarkerSummary?.latestKetones ?? '—'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>Checks today: {data.biomarkerSummary?.ketonesCount || 0}</div></div>
               <div style={card}><div style={{ opacity: 0.72, fontSize: 12 }}>Blood Glucose</div><div style={{ fontSize: 22, fontWeight: 700 }}>{data.biomarkerSummary?.latestGlucose ?? '—'}</div><div style={{ opacity: 0.75, fontSize: 12 }}>Checks today: {data.biomarkerSummary?.glucoseCount || 0}</div></div>
@@ -192,7 +203,7 @@ export default function HealthCoachPage() {
                               return `${total} total (${healthy} healthy, ${loose} loose, ${veryLoose} very loose) · ${timing}`
                             })()}
                           </td>
-                          <td style={tdStyle}>{d.supplements?.creatine ? '✅' : '—'}</td>
+                          <td style={tdStyle}>{Math.round((d.supplements?.creatineGrams || 0) * 10) / 10}g / 5g {d.supplements?.creatine ? '✅' : '—'}</td>
                           <td style={tdStyle}>{d.supplements?.fishOil ? '✅' : '—'}</td>
                           <td style={tdStyle}>{Math.round(d.habitTotals?.bjjSessions || 0)}</td>
                           <td style={tdStyle}>{Math.round(d.habitTotals?.pushReps || 0)}</td>
@@ -262,6 +273,103 @@ export default function HealthCoachPage() {
                 </details>
               )
             })}
+          </section>
+
+          <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
+            <h2 style={{ marginTop: 0 }}>Historical Archive (Older Rows)</h2>
+            <div style={{ opacity: 0.78, marginBottom: 8, fontSize: 13 }}>Bottom archive table for anything outside the current week block, so older history stays visible in one place.</div>
+            {archivedDays.length === 0 ? (
+              <div style={{ opacity: 0.8 }}>No archived rows yet.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', opacity: 0.9 }}>
+                      <th style={thStyle}>Date</th>
+                      <th style={thStyle}>Breakfast (P/C/F/Cal)</th>
+                      <th style={thStyle}>Lunch (P/C/F/Cal)</th>
+                      <th style={thStyle}>Dinner (P/C/F/Cal)</th>
+                      <th style={thStyle}>Snacks (P/C/F/Cal)</th>
+                      <th style={thStyle}>Daily Total (P/C/F/Cal)</th>
+                      <th style={thStyle}>Ketones (AM / PM)</th>
+                      <th style={thStyle}>Glucose (AM / PM)</th>
+                      <th style={{ ...thStyle, minWidth: 280 }}>Poops (daily summary)</th>
+                      <th style={thStyle}>Creatine</th>
+                      <th style={thStyle}>Fish Oil</th>
+                      <th style={thStyle}>BJJ</th>
+                      <th style={thStyle}>Push Reps</th>
+                      <th style={thStyle}>Push-ups</th>
+                      <th style={thStyle}>Pull/Rows</th>
+                      <th style={thStyle}>KB Swings</th>
+                      <th style={thStyle}>Pigeon Stretch</th>
+                      <th style={thStyle}>Quad Stretch</th>
+                      <th style={thStyle}>Iron Neck</th>
+                      <th style={thStyle}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archivedDays.map((d, i) => (
+                      <Fragment key={`archive-${d.date}`}>
+                        <tr style={{ borderTop: '1px solid #2f4666', background: i % 2 === 0 ? '#031625' : '#12314a' }}>
+                          <td style={{ ...tdStyle, minWidth: 120 }}>{d.dayLabel} {d.date}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.breakfast?.protein || 0)}/{Math.round(d.byMeal?.breakfast?.carbs || 0)}/{Math.round(d.byMeal?.breakfast?.fats || 0)}/{Math.round(d.byMeal?.breakfast?.calories || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.lunch?.protein || 0)}/{Math.round(d.byMeal?.lunch?.carbs || 0)}/{Math.round(d.byMeal?.lunch?.fats || 0)}/{Math.round(d.byMeal?.lunch?.calories || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.dinner?.protein || 0)}/{Math.round(d.byMeal?.dinner?.carbs || 0)}/{Math.round(d.byMeal?.dinner?.fats || 0)}/{Math.round(d.byMeal?.dinner?.calories || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.byMeal?.snacks?.protein || 0)}/{Math.round(d.byMeal?.snacks?.carbs || 0)}/{Math.round(d.byMeal?.snacks?.fats || 0)}/{Math.round(d.byMeal?.snacks?.calories || 0)}</td>
+                          <td style={tdStyle}><strong>{Math.round(d.totals?.protein || 0)}/{Math.round(d.totals?.carbs || 0)}/{Math.round(d.totals?.fats || 0)}/{Math.round(d.totals?.calories || 0)}</strong></td>
+                          <td style={tdStyle}>{(() => { const am = d.biomarkers?.ketonesAMLatest ?? d.biomarkers?.ketonesByMeal?.breakfast?.latest ?? d.biomarkers?.ketonesByMeal?.other?.latest ?? '-'; const pm = d.biomarkers?.ketonesPMLatest ?? d.biomarkers?.ketonesByMeal?.dinner?.latest ?? d.biomarkers?.ketonesByMeal?.lunch?.latest ?? d.biomarkers?.ketonesByMeal?.snack?.latest ?? d.biomarkers?.ketonesByMeal?.snacks?.latest ?? '-'; return `AM: ${am} | PM: ${pm}` })()}</td>
+                          <td style={tdStyle}>{(() => { const am = d.biomarkers?.glucoseAMLatest ?? d.biomarkers?.glucoseByMeal?.breakfast?.latest ?? d.biomarkers?.glucoseByMeal?.other?.latest ?? '-'; const pm = d.biomarkers?.glucosePMLatest ?? d.biomarkers?.glucoseByMeal?.dinner?.latest ?? d.biomarkers?.glucoseByMeal?.lunch?.latest ?? d.biomarkers?.glucoseByMeal?.snack?.latest ?? d.biomarkers?.glucoseByMeal?.snacks?.latest ?? '-'; return `AM: ${am} | PM: ${pm}` })()}</td>
+                          <td style={{ ...tdStyle, minWidth: 280, whiteSpace: 'normal' }}>{(() => { const s = d.biomarkers?.stoolCounts || {}; const total = d.biomarkers?.bowelCount || 0; const healthy = s.healthy || 0; const loose = s.loose || 0; const veryLoose = s.very_loose || 0; const bm = d.biomarkers?.bowelByMeal || {}; const amCount = (bm.breakfast?.total || 0); const pmCount = (bm.lunch?.total || 0) + (bm.dinner?.total || 0) + (bm.snack?.total || 0); const timing = amCount >= pmCount ? 'mostly AM' : 'mostly PM'; return `${total} total (${healthy} healthy, ${loose} loose, ${veryLoose} very loose) · ${timing}` })()}</td>
+                          <td style={tdStyle}>{Math.round((d.supplements?.creatineGrams || 0) * 10) / 10}g / 5g {d.supplements?.creatine ? '✅' : '—'}</td>
+                          <td style={tdStyle}>{d.supplements?.fishOil ? '✅' : '—'}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.bjjSessions || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushReps || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.pushups || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.rows || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.kbSwings || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.pigeonStretch || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.quadStretch || 0)}</td>
+                          <td style={tdStyle}>{Math.round(d.habitTotals?.ironNeck || 0)}</td>
+                          <td style={tdStyle}>
+                            <button onClick={() => setExpandedDays((prev) => ({ ...prev, [d.date]: !prev[d.date] }))} style={{ background: '#334155', color: 'white', border: 0, borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}>
+                              {expandedDays[d.date] ? 'Hide' : 'View'}
+                            </button>
+                          </td>
+                        </tr>
+                      {expandedDays[d.date] && (
+                        <tr style={{ background: '#0a1f31' }}>
+                          <td colSpan={21} style={{ padding: '10px 12px', whiteSpace: 'normal' }}>
+                            <div style={{ fontWeight: 700, marginBottom: 6 }}>Logged meals/items for {d.date}</div>
+                            {(d.mealEntries || []).length === 0 && <div style={{ opacity: 0.8 }}>No meal details logged for this day.</div>}
+                            {(d.mealEntries || []).map((m) => (
+                              <div key={m.id || `${m.ts}-${m.label}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
+                                <div style={{ fontSize: 13, opacity: 0.85 }}>{m.label} — P/C/F/Cal: {Math.round(m.protein)}/{Math.round(m.carbs)}/{Math.round(m.fats)}/{Math.round(m.calories)}</div>
+                                <div>{m.items || '—'}</div>
+                                {m.note ? <div style={{ opacity: 0.75, fontSize: 12 }}>Note: {m.note}</div> : null}
+                              </div>
+                            ))}
+                            <div style={{ marginTop: 10, fontWeight: 700 }}>Notes</div>
+                            {(d.feedback || []).length === 0 ? (
+                              <div style={{ opacity: 0.8, marginTop: 4 }}>No notes logged for this day.</div>
+                            ) : (
+                              <div style={{ marginTop: 4 }}>
+                                {(d.feedback || []).map((f) => (
+                                  <div key={f.id || `${d.date}-${f.createdAtMs || 0}`} style={{ borderTop: '1px solid #2a415d', padding: '6px 0' }}>
+                                    <div style={{ opacity: 0.7, fontSize: 12 }}>{fmtDateTime(f.createdAtMs)}</div>
+                                    <div>{f.text}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
           </section>
 
           <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
