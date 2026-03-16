@@ -174,6 +174,12 @@ const mechanics = [
 export default function StretchDividendStrategyPage() {
   return (
     <main style={{ minHeight: '100vh', padding: 24, background: '#0b1020', color: '#e8ecf3', fontFamily: 'Inter, Segoe UI, sans-serif' }}>
+      <style>{`
+        .stretch-table-scroll::-webkit-scrollbar { height: 14px; }
+        .stretch-table-scroll::-webkit-scrollbar-track { background: #0f172a; border-radius: 999px; }
+        .stretch-table-scroll::-webkit-scrollbar-thumb { background: #60a5fa; border-radius: 999px; border: 3px solid #0f172a; }
+        .stretch-table-scroll::-webkit-scrollbar-thumb:hover { background: #93c5fd; }
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 30 }}>Stretch Dividend Strategy</h1>
@@ -217,8 +223,22 @@ export default function StretchDividendStrategyPage() {
       <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
         <h2 style={{ marginTop: 0 }}>Execution + backtest table</h2>
         <div style={{ opacity: 0.78, marginBottom: 6 }}>Method used: buy at the close before ex-date, sell at the close on ex-date, assume dividend still received, ignore tax/commissions/slippage unless noted.</div>
-        <div style={{ opacity: 0.78, marginBottom: 10 }}>Dollar P/L column assumes <strong>${ASSUMED_GROSS_CAPITAL.toLocaleString()}</strong> gross exposure deployed on each hop.</div>
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ opacity: 0.78, marginBottom: 6 }}>Dollar P/L column assumes <strong>${ASSUMED_GROSS_CAPITAL.toLocaleString()}</strong> gross exposure deployed on each hop.</div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: '#93c5fd', background: '#0f172a', border: '1px solid #334155', borderRadius: 999, padding: '6px 10px', marginBottom: 10 }}>
+          <span aria-hidden='true'>↔</span>
+          <span>Scroll sideways to see the full table</span>
+        </div>
+        <div
+          className='stretch-table-scroll'
+          style={{
+            overflowX: 'auto',
+            paddingBottom: 8,
+            scrollbarWidth: 'auto',
+            scrollbarColor: '#60a5fa #0f172a',
+            border: '1px solid #334155',
+            borderRadius: 10
+          }}
+        >
           <table style={{ width: '100%', minWidth: 1680, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ textAlign: 'left', opacity: 0.88 }}>
