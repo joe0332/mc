@@ -104,7 +104,12 @@ export default function PredictionMarketsPage() {
         <>
           <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
             <h2 style={{ marginTop: 0 }}>Performance Snapshot</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
+              <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10, background: '#0f172a' }}>
+                <div style={{ opacity: 0.72, fontSize: 12 }}>Realized Closed P/L</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: (data.metrics?.realizedNetPnl ?? 0) > 0 ? '#86efac' : (data.metrics?.realizedNetPnl ?? 0) < 0 ? '#fca5a5' : '#e8ecf3' }}>{usd(data.metrics?.realizedNetPnl ?? 0)}</div>
+                <div style={{ opacity: 0.65, fontSize: 11, marginTop: 4 }}>Closed positions only</div>
+              </div>
               <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}><div style={{ opacity: 0.72, fontSize: 12 }}>Commits</div><div style={{ fontSize: 24, fontWeight: 700 }}>{data.metrics?.totalCommits ?? 0}</div></div>
               <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}><div style={{ opacity: 0.72, fontSize: 12 }}>Resolved</div><div style={{ fontSize: 24, fontWeight: 700 }}>{data.metrics?.resolvedCommits ?? 0}</div></div>
               <div style={{ border: '1px solid #334155', borderRadius: 8, padding: 10 }}><div style={{ opacity: 0.72, fontSize: 12 }}>Wins</div><div style={{ fontSize: 24, fontWeight: 700, color: '#86efac' }}>{data.metrics?.wins ?? 0}</div></div>
