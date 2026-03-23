@@ -10,6 +10,10 @@ const POTENTIAL_UPDATES = [
   'Evaluate PinchTab as an optional browser-runtime enhancement (pilot one non-critical workflow before any adoption).'
 ]
 
+const BROWSER_CONTROL_IMPROVEMENTS = [
+  'Playwright vs browser-use decision: keep Playwright as the default browser trust anchor for this setup because it is more mature, deterministic, and lower-risk; only add browser-use as an explicitly hardened second layer when higher-level agent autonomy is worth the larger trust/telemetry surface. Recommended shape: Playwright engine + thin local OpenClaw wrapper + dedicated browser profile; if browser-use is adopted later, keep it current, disable anonymized telemetry before import, leave cloud sync/observability off unless self-hosted, and prefer a local model for sensitive workflows. Full saved assessment: `PLAYWRIGHT-VS-BROWSER-USE-ASSESSMENT.md`.'
+]
+
 const CONTROL_SUMMARY = [
   'Closed-loop completion gate: tasks are not done until Joe receives completion/blocker/question update.',
   'Recovery sweep guardrail: after service recovery, scan 12h missed/failed scheduled work and rerun critical jobs first.',
@@ -35,6 +39,7 @@ function fmtNext(expr = '', tz = '') {
 export default function OpenClawEnhancementsPage() {
   const [collapsed, setCollapsed] = useState({
     potential: false,
+    browserControl: false,
     controls: false,
     secretary: false,
     jobs: false
@@ -146,6 +151,14 @@ export default function OpenClawEnhancementsPage() {
           <button onClick={() => setCollapsed((s) => ({ ...s, potential: !s.potential }))} style={{ background: '#334155', color: 'white', border: 0, borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>{collapsed.potential ? 'Expand' : 'Collapse'}</button>
         </div>
         {!collapsed.potential && <ul style={{ marginTop: 10 }}>{POTENTIAL_UPDATES.map((x, i) => <li key={i} style={{ marginBottom: 6 }}>{x}</li>)}</ul>}
+      </section>
+
+      <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0 }}>Browser Control Improvements</h2>
+          <button onClick={() => setCollapsed((s) => ({ ...s, browserControl: !s.browserControl }))} style={{ background: '#334155', color: 'white', border: 0, borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>{collapsed.browserControl ? 'Expand' : 'Collapse'}</button>
+        </div>
+        {!collapsed.browserControl && <ul style={{ marginTop: 10 }}>{BROWSER_CONTROL_IMPROVEMENTS.map((x, i) => <li key={i} style={{ marginBottom: 6 }}>{x}</li>)}</ul>}
       </section>
 
       <section style={{ background: '#121a33', borderRadius: 12, padding: 14, marginTop: 14 }}>
