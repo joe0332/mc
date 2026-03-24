@@ -704,6 +704,7 @@ export default function MissionControlPage() {
             <a href='/todo-list' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>To-Do List</a>
             <a href='/prediction-markets' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Prediction Markets</a>
             <a href='/prediction-markets-noaa' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Prediction Markets (NOAA-only)</a>
+            <a href='/prediction-markets-live-noaa' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Live Prediction Markets</a>
             <a href='/upwork-jobs' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Upwork</a>
             <a href='/offerings-research' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Offerings Research</a>
             <a href='/income-ideas' style={{ background: '#1e3a8a', color: 'white', textDecoration: 'none', borderRadius: 8, padding: '8px 10px', fontSize: 13 }}>Income Ideas</a>
